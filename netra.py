@@ -8,6 +8,23 @@ from typing import Callable, Optional
 
 __version__ = "0.1.0"
 
+__all__ = [
+    "DEFAULT_TIMEOUT",
+    "DEFAULT_WORKERS",
+    "PortScanner",
+    "QUICK_PORTS",
+    "SERVICE_MAP",
+    "ScanResult",
+    "ScanResultSet",
+    "clean_banner",
+    "detect_service",
+    "detect_service_and_banner",
+    "format_scan_report",
+    "interactive_scan",
+    "normalize_target",
+    "print_report",
+]
+
 SERVICE_MAP = {
     21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS", 80: "HTTP",
     110: "POP3", 143: "IMAP", 443: "HTTPS", 445: "SMB", 3306: "MySQL",
@@ -43,11 +60,26 @@ class ScanResultSet:
     completed: int
     total: int
     interrupted: bool = False
+    duration: Optional[float] = None
+    target: Optional[str] = None
+    ip: Optional[str] = None
+    mode: Optional[str] = None
 
     def __len__(self) -> int: return len(self.results)
     def __iter__(self): return iter(self.results)
     @property
     def open_ports(self) -> list[ScanResult]: return [r for r in self.results if r.is_open]
+
+    def to_report(
+        self,
+        target: Optional[str] = None,
+        mode: Optional[str] = None,
+        duration: Optional[float] = None,
+        ip: Optional[str] = None,
+        resolved_ip: Optional[str] = None,
+    ) -> str:
+        """Render this result set as a formatted scan report string."""
+        return format_scan_report(self, target=target, mode=mode, duration=duration, ip=ip, resolved_ip=resolved_ip)
 
 
 # ============================================================================
@@ -151,16 +183,19 @@ class PortScanner:
     def scan_sequential(self, ports: list[int], detect_services: bool = True, progress_cb: Optional[Callable] = None, stop_event: Optional[threading.Event] = None) -> ScanResultSet:
         """Scan ports sequentially on the calling thread."""
         stop_event, results = stop_event or threading.Event(), []
+        start_time = time.perf_counter()
         for p in ports:
             if stop_event.is_set() or (r := self.scan_port(p, detect_services, stop_event)) is None: break
             results.append(r)
             if progress_cb: progress_cb(len(results), len(ports), r)
-        return ScanResultSet(results, len(results), len(ports), stop_event.is_set())
+        duration = time.perf_counter() - start_time
+        return ScanResultSet(results, len(results), len(ports), stop_event.is_set(), duration=duration, target=self.target, mode="sequential")
 
     def scan_threaded(self, ports: list[int], detect_services: bool = True, progress_cb: Optional[Callable] = None, stop_event: Optional[threading.Event] = None) -> ScanResultSet:
         """Scan ports concurrently with bounded thread pool and responsive Ctrl+C handling."""
         stop_event, total, results = stop_event or threading.Event(), len(ports), []
-        if not total: return ScanResultSet([], 0, 0, False)
+        start_time = time.perf_counter()
+        if not total: return ScanResultSet([], 0, 0, False, duration=0.0, target=self.target, mode="fast")
         workers, port_iter, active = min(self.workers, total), iter(ports), {}
         ex = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
         def refill():
@@ -185,11 +220,15 @@ class PortScanner:
             for fut in active:
                 if fut.done() and not fut.cancelled() and (r := fut.result()): results.append(r)
         results.sort(key=lambda r: r.port)
-        return ScanResultSet(results, len(results), total, stop_event.is_set())
+        duration = time.perf_counter() - start_time
+        return ScanResultSet(results, len(results), total, stop_event.is_set(), duration=duration, target=self.target, mode="fast")
 
     def scan(self, ports: list[int], mode: str = "fast", detect_services: bool = True, progress_cb: Optional[Callable] = None, stop_event: Optional[threading.Event] = None) -> ScanResultSet:
         """Scan a list of ports using 'fast' (threaded) or 'sequential' mode."""
-        if mode in ("fast", "threaded"): return self.scan_threaded(ports, detect_services, progress_cb, stop_event)
+        if mode in ("fast", "threaded"):
+            res = self.scan_threaded(ports, detect_services, progress_cb, stop_event)
+            res.mode = mode
+            return res
         if mode == "sequential": return self.scan_sequential(ports, detect_services, progress_cb, stop_event)
         raise ValueError(f"Unknown mode: {mode}")
 
@@ -277,31 +316,91 @@ def ask_service_detection() -> bool:
     return ask_choice("\nSelect [1/2, default: 1]: ", ["1", "2"], default="1") == "1"
 
 
+def format_scan_report(
+    results: ScanResultSet,
+    target: Optional[str] = None,
+    mode: Optional[str] = None,
+    duration: Optional[float] = None,
+    ip: Optional[str] = None,
+    resolved_ip: Optional[str] = None,
+) -> str:
+    """Format a ScanResultSet into a human-readable text report matching the CLI output."""
+    res_ip = resolved_ip or ip or getattr(results, "ip", None)
+    target_val = target or getattr(results, "target", None)
+    if not res_ip and target_val:
+        try:
+            res_ip = socket.gethostbyname(target_val)
+        except OSError:
+            pass
+
+    if target_val and res_ip:
+        target_display = f"{target_val} ({res_ip})"
+    elif target_val:
+        target_display = target_val
+    elif res_ip:
+        target_display = res_ip
+    else:
+        target_display = "N/A"
+
+    mode_val = mode or getattr(results, "mode", None) or "FAST"
+    mode_display = mode_val.upper()
+
+    dur = duration if duration is not None else getattr(results, "duration", None)
+    dur_display = f"{dur:.2f}s" if dur is not None else "N/A"
+
+    c_open = sum(1 for r in results.results if r.state == "OPEN")
+    c_closed = sum(1 for r in results.results if r.state == "CLOSED")
+    c_no_resp = sum(1 for r in results.results if r.state == "NO RESPONSE")
+    c_error = sum(1 for r in results.results if r.state == "ERROR")
+
+    lines = [
+        "",
+        "[FINAL SCAN REPORT]",
+        f"  Target        : {target_display}",
+        f"  Scan Mode     : {mode_display}",
+        f"  Duration      : {dur_display}",
+        f"  Total Scanned : {len(results.results)}",
+        "",
+        f"  Open          : {c_open}",
+        f"  Closed        : {c_closed}",
+        f"  No Response   : {c_no_resp}",
+    ]
+    if c_error > 0:
+        lines.append(f"  Errors        : {c_error}")
+
+    lines.extend([
+        "",
+        "[SCAN SUMMARY]",
+        f"  {c_open} ports accepted TCP connections.",
+        f"  {c_closed} ports explicitly rejected the connection.",
+        f"  {c_no_resp} ports did not respond before the timeout.",
+    ])
+    if c_error > 0:
+        lines.append(f"  {c_error} ports encountered network/socket errors.")
+
+    lines.extend([
+        "",
+        '  Note: "No Response" does not mean the ports are closed.',
+        "  The host or an intermediate firewall may be filtering or dropping probes.",
+        "",
+        "[DISCOVERED OPEN PORTS]",
+    ])
+
+    if not results.open_ports:
+        lines.append("  No open ports detected.")
+    else:
+        lines.append(f"  {'PORT':<8} {'STATE':<8} {'SERVICE':<12} {'LATENCY':<10} {'BANNER'}")
+        lines.append("  " + "-" * 70)
+        for r in results.open_ports:
+            lat = f"{r.latency:.1f}ms" if r.latency is not None else "N/A"
+            lines.append(f"  {r.port:<8} {r.state:<8} {r.service:<12} {lat:<10} {r.banner or 'N/A'}")
+
+    return "\n".join(lines)
+
+
 def print_report(target: str, ip: str, mode: str, duration: float, res: ScanResultSet) -> None:
     """Render cleanly formatted final port scan report with honest TCP classifications."""
-    c_open = sum(1 for r in res.results if r.state == "OPEN")
-    c_closed = sum(1 for r in res.results if r.state == "CLOSED")
-    c_no_resp = sum(1 for r in res.results if r.state == "NO RESPONSE")
-    c_error = sum(1 for r in res.results if r.state == "ERROR")
-
-    print(f"\n[FINAL SCAN REPORT]\n  Target        : {target} ({ip})\n  Scan Mode     : {mode.upper()}\n  Duration      : {duration:.2f}s\n  Total Scanned : {len(res.results)}")
-    print(f"\n  Open          : {c_open}\n  Closed        : {c_closed}\n  No Response   : {c_no_resp}")
-    if c_error > 0:
-        print(f"  Errors        : {c_error}")
-
-    print(f"\n[SCAN SUMMARY]\n  {c_open} ports accepted TCP connections.\n  {c_closed} ports explicitly rejected the connection.\n  {c_no_resp} ports did not respond before the timeout.")
-    if c_error > 0:
-        print(f"  {c_error} ports encountered network/socket errors.")
-    print("\n  Note: \"No Response\" does not mean the ports are closed.\n  The host or an intermediate firewall may be filtering or dropping probes.")
-
-    print("\n[DISCOVERED OPEN PORTS]")
-    if not res.open_ports:
-        print("  No open ports detected.")
-        return
-    print(f"  {'PORT':<8} {'STATE':<8} {'SERVICE':<12} {'LATENCY':<10} {'BANNER'}\n  " + "-" * 70)
-    for r in res.open_ports:
-        lat = f"{r.latency:.1f}ms" if r.latency is not None else "N/A"
-        print(f"  {r.port:<8} {r.state:<8} {r.service:<12} {lat:<10} {r.banner or 'N/A'}")
+    print(format_scan_report(res, target=target, resolved_ip=ip, mode=mode, duration=duration))
 
 
 # ============================================================================
@@ -342,7 +441,8 @@ def interactive_scan() -> None:
                 return print("\n  Goodbye!\n")
 
             print(f"  Scan complete: {res.completed}/{res.total} ports scanned in {duration:.2f}s.")
-            print_report(target, ip, mode, duration, res)
+            report = format_scan_report(res, target=target, resolved_ip=ip, mode=mode, duration=duration)
+            print(report)
 
             if ask_choice("\nPerform another scan? [y/N]: ", ["y", "n", "yes", "no"], default="n") not in ("y", "yes"):
                 return print("\n  Goodbye!\n")
