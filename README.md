@@ -10,8 +10,6 @@ It is intentionally small, terminal-based, and dependency-free.
 
 > **Scan ports. Find services. Read the response.**
 
-![NETRA terminal demo](/assets/netra-demo.png)
-
 ------------------------------------------------------------------------
 
 
@@ -137,50 +135,7 @@ adding anything else.**
 
 ## Example
 
-``` text
-==================================================
-NETRA v0.1.0 — Network Reconnaissance Toolkit
-==================================================
-
-Select action:
-  [1] Quick Scan (Common Services)
-  [2] Custom Port Range
-  [3] Custom Port List
-  [4] Exit
-
-Select [1-4, default: 1]: 1
-
-Enter target IP address or hostname:
-> www.tryhackme.com
-  Target resolved to: 64.239.109.193
-
-Scan mode:
-  [1] Fast (Threaded)
-  [2] Sequential
-
-Select [1/2, default: 1]: 1
-
-Service/Banner detection:
-  [1] Enabled
-  [2] Disabled
-
-Select [1/2, default: 1]: 1
-
-[SCAN CONFIGURATION]
-  Target                  : www.tryhackme.com (64.239.109.193)
-  No of Ports to scan     : 16
-  Mode                    : FAST
-  Service detection       : Enabled
-
-[SCAN IN PROGRESS]
-  [+] OPEN: Port 80  | HTTP  | 20.6ms | HTTP/1.0 308 Permanent Redirect [Server: Vercel]
-  [+] OPEN: Port 443 | HTTPS | 19.3ms | HTTP/1.1 429 Too Many Requests [Server: Vercel]
-
-[FINAL SCAN REPORT]
-  Open          : 2
-  Closed        : 0
-  No Response   : 14
-```
+![NETRA terminal demo](/assets/netra-demo.png)
 
 ------------------------------------------------------------------------
 
