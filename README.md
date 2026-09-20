@@ -1,25 +1,390 @@
-INTERN COMPANY : CODETECH IT SOLUTIONS
+# NETRA v0.1.0
 
-NAME : KISHORE NARAYANAN K
+### Network Reconnaissance Toolkit
 
-INTERN ID : CT06DF297
+NETRA is a lightweight Python-based TCP reconnaissance tool built to understand what is actually happening during a network scan --- from
+opening a TCP connection to identifying the service running behind an
+open port.
 
-DOMAIN : CYBER SECURITY AND ETHICAL HACKING
+It is intentionally small, terminal-based, and dependency-free.
 
-DURATION : 6 WEEKS
+> **Scan ports. Find services. Read the response.**
 
-MENTOR : NEELA SANTHOSH
+![NETRA terminal demo](image.png)
 
-About this Network Inscpector Tool
-This Network Inspector Tool is a simple yet powerful web-based application designed for cybersecurity and network auditing. It's built using modern web technologies like HTML5 and CSS3, with a Python-powered Flask backend that handles the heavy lifting. Essentially, it helps users perform basic penetration testing and reconnaissance tasks, making it an invaluable tool for those looking to analyze and assess network security.The way it works is straightforward—users enter an IP address or domain, and the tool runs several backend processes using well-known libraries like Nmap for port scanning and Requests for probing websites. It even employs pattern-matching techniques to identify potential security vulnerabilities such as SQL injection (SQLi) or Cross-Site Scripting (XSS). The results are neatly displayed using Jinja2 templating, ensuring a clean and easy-to-read format.Beyond scanning ports and detecting services, this tool provides deeper insights into a target's security setup. It fetches important HTTP headers, which can reveal server technologies, misconfigurations, or missing security defenses. The frontend has been designed with a modern aesthetic—using flexbox for layout, media queries for responsive design, and smooth transitions for a better user experience. A JavaScript-powered loading spinner keeps users engaged while scans are running in the background.
+------------------------------------------------------------------------
 
-Output Results : 
 
-![Image](https://github.com/user-attachments/assets/431fc698-42cd-41ad-837a-0471e2d294e5)
-![Image](https://github.com/user-attachments/assets/68f95fee-1028-4e45-bbbc-1e755609a492)
+## Requirements
 
-On the backend, security is a top priority. The Flask app processes POST requests safely, leveraging Python’s capabilities to prevent command injection attacks. Plus, it's highly modular, meaning it can be expanded to include features like SSL certificate validation, directory enumeration, or robots.txt analysis. This flexibility makes it useful for ethical hacking, student learning, or even integrating into DevSecOps workflows. Scan results can be stored as JSON or text, making them compatible with SIEM tools for further analysis.
+-   Python 3.9+
+-   Windows, Linux, or another platform with standard Python socket
+    support
+-   No third-party Python packages required for the core scanner
 
-Usability and accessibility have also been considered. The input fields include validation checks, ensuring smooth user interactions, and results are displayed in a scrollable, preformatted block for easy reading—even on smaller screens. Thanks to its lightweight design, the app can be hosted on Heroku, AWS EC2, or Render, and even containerized using Docker, making deployment a breeze.
+Check your Python version:
 
-Ultimately, this Network Inspector Tool is a practical yet educational application that blends web development with cybersecurity. Whether you're a security analyst, ethical hacker, or student eager to understand how reconnaissance works, this tool offers an intuitive and effective way to audit networks. With its user-friendly interface and robust backend capabilities, it’s a valuable asset for anyone interested in security assessments, internal audits, or web application hardening.
+``` bash
+python --version
+```
+
+or on some Linux systems:
+
+``` bash
+python3 --version
+```
+
+------------------------------------------------------------------------
+
+## Installation
+
+Clone the repository:
+
+``` bash
+git clone https://github.com/Kishore-Code-Hub/Network-Reconnaissance-Toolkit.git
+cd Network-Reconnaissance-Toolkit
+```
+
+Run NETRA:
+
+### Windows
+
+``` powershell
+python netra.py
+```
+
+### Linux
+
+``` bash
+python3 netra.py
+```
+
+------------------------------------------------------------------------
+
+## What NETRA does
+
+NETRA takes a hostname or IP address, scans the selected ports,
+identifies which ones accept TCP connections, and optionally performs
+basic service/banner detection on the ports that are open.
+
+A typical run looks like:
+
+``` text
+Target
+  ↓
+Resolve hostname
+  ↓
+Select ports
+  ↓
+TCP scan
+  ↓
+OPEN / CLOSED / NO RESPONSE
+  ↓
+Service detection
+  ↓
+Banner / protocol information
+  ↓
+Final report
+```
+
+The goal of v0.1.0 is simple: **do network reconnaissance well before
+adding anything else.**
+
+------------------------------------------------------------------------
+
+## Features
+
+-   **Quick Scan**
+    -   Scans a predefined set of common service ports.
+-   **Custom Port Range**
+    -   Scan any range from `1` to `65535`.
+    -   Example: `1-10000`
+-   **Custom Port List**
+    -   Scan individual ports and ranges.
+
+    -   Example:
+
+        ``` text
+        22,80,443,3306,8000-8010
+        ```
+-   **Threaded scanning**
+    -   Uses concurrent workers for faster scans.
+-   **Sequential scanning**
+    -   Useful for understanding and comparing the basic scanning
+        process without concurrency.
+-   **Service / banner detection**
+    -   Runs after an open TCP port is found.
+    -   Includes protocol-aware identification for supported services.
+-   **Latency measurement**
+    -   Shows how long the TCP connection took.
+-   **Live results**
+    -   Open ports are displayed while the scan is running.
+-   **Graceful Ctrl+C**
+    -   Large scans can be interrupted without killing the whole
+        program.
+-   **Clear TCP states**
+    -   `OPEN`
+    -   `CLOSED`
+    -   `NO RESPONSE`
+    -   `ERROR`
+-   **Reusable Python API**
+    -   The scanner is designed to be imported and used by other Python
+        security tools.
+-   **Single-file design**
+    -   The current module stays compact and easy to understand.
+
+------------------------------------------------------------------------
+
+## Example
+
+``` text
+==================================================
+NETRA v0.1.0 — Network Reconnaissance Toolkit
+==================================================
+
+Select action:
+  [1] Quick Scan (Common Services)
+  [2] Custom Port Range
+  [3] Custom Port List
+  [4] Exit
+
+Select [1-4, default: 1]: 1
+
+Enter target IP address or hostname:
+> www.tryhackme.com
+  Target resolved to: 64.239.109.193
+
+Scan mode:
+  [1] Fast (Threaded)
+  [2] Sequential
+
+Select [1/2, default: 1]: 1
+
+Service/Banner detection:
+  [1] Enabled
+  [2] Disabled
+
+Select [1/2, default: 1]: 1
+
+[SCAN CONFIGURATION]
+  Target                  : www.tryhackme.com (64.239.109.193)
+  No of Ports to scan     : 16
+  Mode                    : FAST
+  Service detection       : Enabled
+
+[SCAN IN PROGRESS]
+  [+] OPEN: Port 80  | HTTP  | 20.6ms | HTTP/1.0 308 Permanent Redirect [Server: Vercel]
+  [+] OPEN: Port 443 | HTTPS | 19.3ms | HTTP/1.1 429 Too Many Requests [Server: Vercel]
+
+[FINAL SCAN REPORT]
+  Open          : 2
+  Closed        : 0
+  No Response   : 14
+```
+
+------------------------------------------------------------------------
+
+## Scan modes
+
+### Fast --- Threaded
+
+The default mode.
+
+Multiple ports are scanned concurrently, making it suitable for larger
+ranges.
+
+``` text
+[1] Fast (Threaded)
+```
+
+### Sequential
+
+Ports are scanned one after another.
+
+``` text
+[2] Sequential
+```
+
+This mode is slower, but it is useful for learning how the scanner
+behaves without concurrent workers.
+
+------------------------------------------------------------------------
+
+## Service detection
+
+Service detection is performed on ports that are actually found to be
+open.
+
+For example:
+
+``` text
+80    → HTTP
+443   → HTTPS
+22    → SSH
+53    → DNS
+3306  → MySQL
+```
+
+NETRA also attempts protocol-aware banner detection where supported.
+
+The important distinction is that a port number alone is only a
+convention. A service label should be treated as an identification
+result, not absolute proof of what software is running.
+
+------------------------------------------------------------------------
+
+## Using NETRA as a Python module
+
+NETRA is not limited to its interactive terminal interface.
+
+The core scanner can be imported into another Python project.
+
+Example:
+
+``` python
+from netra import PortScanner
+
+scanner = PortScanner("192.168.1.10")
+
+results = scanner.scan(
+    ports=[22, 80, 443],
+    threaded=True
+)
+
+for result in results:
+    if result.state == "OPEN":
+        print(result)
+```
+
+This makes NETRA useful as a building block for larger security
+automation projects.
+
+------------------------------------------------------------------------
+
+## Port range examples
+
+### Quick scan
+
+Choose:
+
+``` text
+[1] Quick Scan
+```
+
+### Scan ports 1--1000
+
+``` text
+Start port: 1
+End port: 1000
+```
+
+### Scan ports 1--10000
+
+``` text
+Start port: 1
+End port: 10000
+```
+
+### Custom list
+
+``` text
+22,80,443,3306,8000-8010
+```
+
+------------------------------------------------------------------------
+
+## Project structure
+
+The current version intentionally stays small:
+
+``` text
+NETRA/
+│
+├── netra.py
+├── README.md
+└── assets/
+    └── netra-demo.png
+```
+
+The single-file approach makes the first version easy to read, test, and
+understand.
+
+As the project grows, functionality can be separated into modules
+without changing the core idea.
+
+------------------------------------------------------------------------
+
+## What this project is for
+
+NETRA is primarily a learning and security-engineering project.
+
+It demonstrates practical understanding of:
+
+-   TCP connections
+-   sockets
+-   port states
+-   timeouts
+-   concurrency
+-   hostname resolution
+-   service identification
+-   banner grabbing
+-   structured results
+-   command-line interfaces
+-   reusable Python components
+
+It is also a foundation for future reconnaissance modules.
+
+------------------------------------------------------------------------
+
+## Roadmap
+
+The first milestone is deliberately focused.
+
+### v0.1.0 --- TCP Reconnaissance
+
+-   [x] TCP port scanning
+-   [x] Quick scan
+-   [x] Custom ranges
+-   [x] Custom port lists
+-   [x] Threaded scanning
+-   [x] Sequential scanning
+-   [x] Service detection
+-   [x] Banner detection
+-   [x] Latency
+-   [x] Ctrl+C handling
+-   [x] Reusable scanner API
+
+### Future
+
+Possible future modules:
+
+``` text
+NETRA
+├── TCP Reconnaissance
+├── Service Intelligence
+├── DNS Reconnaissance
+├── HTTP Reconnaissance
+└── Reporting / Automation
+```
+
+Future features should be added when they are useful and reliable ---
+not simply to make the feature list longer.
+
+------------------------------------------------------------------------
+
+## Responsible use
+
+Only scan systems and networks that you own or have explicit permission
+to test.
+
+NETRA is intended for learning, authorized security testing, lab
+environments, CTFs, and defensive network reconnaissance.
+
+------------------------------------------------------------------------
+
+## Version
+
+**NETRA v0.1.0 --- TCP Network Reconnaissance**
+
+Built with Python and the standard library.
+
