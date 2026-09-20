@@ -10,7 +10,7 @@ It is intentionally small, terminal-based, and dependency-free.
 
 > **Scan ports. Find services. Read the response.**
 
-![NETRA terminal demo](image.png)
+![NETRA terminal demo](/assets/netra-demo.png)
 
 ------------------------------------------------------------------------
 
